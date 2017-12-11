@@ -1,5 +1,6 @@
 #!/usr/bin/env Rscript
 source("Yield_connection.R")
+library(RM2)
 
 # global vars
 BUF_SIZE <- 1000 # we create buffers in advance
@@ -12,7 +13,7 @@ price_changes <- data.frame(time=.POSIXct(rep(NA, BUF_SIZE)),
 initial_timestamp <- Sys.time()      # start-of-program timestamp
 plot_timestamp <- initial_timestamp  # we use plot_timestamp to draw the plot once in a second
 
-init_price <- 100
+init_price <- 110
 # add initial price into price_changes dataframe:
 price_changes_counter <- 1
 price_changes[price_changes_counter,] <- list(time=initial_timestamp, price=init_price)
@@ -25,6 +26,27 @@ price_changes[price_changes_counter,] <- list(time=initial_timestamp, price=init
 ## and to return a list of 2 variables:
 ### 1) lst$change_price (logical vector of unit length) - TRUE when operator desires to change ticket price
 ### 2) lst$price (numeric vector of unit length) - new ticket price
+
+Fare <- sort(c(110, 115, 120, 125),decreasing = TRUE)
+cap <- 100
+
+T = 10
+
+intens <- function(price) {
+        C = exp(1)
+        return(price/C)
+}
+
+Mean = Var = intens(Fare)
+
+res = data.frame(timeInMimutes = numeric(cap),
+                 price=numeric(cap),residualCapacity=numeric(cap),
+                 futureIntensity=numeric(cap)) 
+
+t = i = 0
+price = min(Fare)
+
+
 event_handler <- function(sold, price) {
     now <- Sys.time()
     if (sold) {
@@ -38,13 +60,22 @@ event_handler <- function(sold, price) {
     }
     
     change_price <- FALSE
-    new_price <- 0
+    new_price <- 150
     
     # example how to change prices
-    if (ticket_counter == 10 && sold) {
+    if (ticket_counter == 30 && sold) {
         change_price <- TRUE
-        new_price <- 20
+        while(t<T & cap>0){
+                i = i + 1
+                t = t + rexp(1,intens(price))
+                p <- EMSRb(Fare = Fare, Mean = (T-t)* intens(Fare), 
+                           Var = (T-t)*intens(Fare), cap = cap)
+                new_price = max(Fare[p==cap])
+                cap = cap - 1
+                res[i,] = c(round(t,2),price,cap,round(cap/(T-t),2))
+        }
     }
+    
     
     if (change_price) {
         # update price_changes dataframe (append last value):
@@ -88,7 +119,7 @@ Draw <- function()
 
 # server options
 host <- "datastream.ilykei.com"
-port <- 30008
+port <- 30888
 login <-  'hsafaie@uchicago.edu'
 password <- '3w7WN6ln'
 stream_name <- "Yield"
